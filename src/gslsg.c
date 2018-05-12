@@ -33,6 +33,11 @@ void print_seg_3(seg_3 **seg, int num_s){
 int segment_slope_3(seg_3 *seg){
     int err;
     seg->slope = gsl_vector_alloc(3);
+
+    gsl_vector_set(seg->slope, 0, 0);
+    gsl_vector_set(seg->slope, 1, 0);
+    gsl_vector_set(seg->slope, 2, 0);
+
     if( (err = gsl_vector_add(seg->slope, seg->end)) ){
         // Handle error
         return GSL_FAILURE;
