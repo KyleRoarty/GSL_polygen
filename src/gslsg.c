@@ -57,6 +57,7 @@ int create_vertex_3(FILE *fp, gsl_vector *v){
     gsl_vector_set(v, 1, atof(strtok_r(NULL, ",", &saveptr)));
     gsl_vector_set(v, 2, atof(saveptr));
 
+    free(num);
     return GSL_SUCCESS;
 }
 
@@ -127,5 +128,6 @@ int main(int argc, char **argv){
 
     free(seg);
     free(vert);
+    fclose(fp);
     return(0);
 }
