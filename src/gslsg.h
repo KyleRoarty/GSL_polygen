@@ -7,7 +7,7 @@ typedef struct{
     gsl_vector *start;
     gsl_vector *end;
     gsl_vector *slope;
-}seg
+} seg_3;
 
 
 
