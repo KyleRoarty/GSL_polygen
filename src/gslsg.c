@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gsl/gsl_vector.h>
+#include <gsl/gsl_matrix.h>
 #include <gsl/gsl_errno.h>
+#include <gsl/gsl_linalg.h>
 
 #include "gslsg.h"
 
@@ -62,6 +64,50 @@ int create_vertex_3(FILE *fp, gsl_vector *v){
     return GSL_SUCCESS;
 }
 
+// TODO: replace V_DIM with a different constant here
+int segment_intersect_3(seg_3 *seg1, seg_3 *seg2){
+    int err;
+    gsl_matrix *A;
+    gsl_vector *b, *tau, *x, *residual;
+
+    tau = gsl_vector_alloc(V_DIM-1);
+    x = gsl_vector_alloc(V_DIM-1);
+    residual = gsl_vector_alloc(V_DIM);
+    b = gsl_vector_alloc(V_DIM);
+    A = gsl_matrix_alloc(V_DIM, V_DIM-1);
+
+    for(int i = 0; i < V_DIM; i++)
+        gsl_vector_set(b, i, gsl_vector_get(seg1->start, i)+gsl_vector_get(seg2->start, i));
+
+    for(int i = 0; i < V_DIM; i++){
+        gsl_matrix_set(A, i, 0, gsl_vector_get(seg1->slope, i));
+        gsl_matrix_set(A, i, 1, gsl_vector_get(seg2->slope, i));
+    }
+
+    if( (err = gsl_linalg_QR_decomp(A, tau)) ){
+        printf("Error: QR decomp. %d\n", err);
+        return GSL_FAILURE;
+    }
+
+    if( (err = gsl_linalg_QR_lssolve(A, tau, b, x, residual)) ){
+        printf("Error: QR lssolve. %d\n", err);
+        return GSL_FAILURE;
+    }
+
+    if(gsl_vector_isnull(residual)){
+        printf("x:\n");
+        gsl_vector_fprintf(stdout, x, "%f");
+        printf("Residual:\n");
+        gsl_vector_fprintf(stdout, residual, "%f");
+    }
+
+    // TODO: if solution, check bounds for seg1, seg2 begin and end
+
+    return GSL_SUCCESS;
+
+    // TODO: Free the vectors
+}
+
 int main(int argc, char **argv){
     FILE *fp;
     //number of points/vertices, number of segments
@@ -99,7 +145,7 @@ int main(int argc, char **argv){
                 exit(-1);
     }
 
-    print_vert_3(vert, num_v);
+    //print_vert_3(vert, num_v);
 
     iter = 0;
     for(int i = 0; i < num_v; i++){
@@ -115,7 +161,14 @@ int main(int argc, char **argv){
         }
     }
 
-    print_seg_3(seg, num_s);
+    //print_seg_3(seg, num_s);
+
+    for(int i = 0; i < num_s; i++){
+        for(int j = i+1; j < num_s; j++){
+            printf("\nSeg %d and seg %d\n", i, j);
+            segment_intersect_3(seg[i], seg[j]);
+        }
+    }
 
     //Memory management section
 
