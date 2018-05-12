@@ -32,11 +32,7 @@ void print_seg_3(seg_3 **seg, int num_s){
 //For a *_3 function, constants, like for gsl_vector_malloc, will be 3
 int segment_slope_3(seg_3 *seg){
     int err;
-    seg->slope = gsl_vector_alloc(3);
-
-    gsl_vector_set(seg->slope, 0, 0);
-    gsl_vector_set(seg->slope, 1, 0);
-    gsl_vector_set(seg->slope, 2, 0);
+    seg->slope = gsl_vector_calloc(3);
 
     if( (err = gsl_vector_add(seg->slope, seg->end)) ){
         // Handle error
