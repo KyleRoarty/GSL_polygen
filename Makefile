@@ -1,7 +1,7 @@
 CFLAGS= -g -Wall -std=gnu11
 LDLIBS=
 #`-Wl,-rpath -Wl,/usr/local/lib needed for gsl to work
-LDFLAGS= -Wl,-rpath -Wl,/usr/local/lib -lgsl -lgslcblas
+LDFLAGS= -Wl,-rpath -Wl,/usr/local/lib -lgsl -lgslcblas -lm
 CC=gcc
 
 SRC=./src
