@@ -65,47 +65,61 @@ int create_vertex_3(FILE *fp, gsl_vector *v){
 }
 
 // TODO: replace V_DIM with a different constant here
-int segment_intersect_3(seg_3 *seg1, seg_3 *seg2){
-    int err;
+int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x, gsl_vector *residual){
+    int err, ret;
     gsl_matrix *A;
-    gsl_vector *b, *tau, *x, *residual;
+    gsl_vector *tau, *b;
 
     tau = gsl_vector_alloc(V_DIM-1);
-    x = gsl_vector_alloc(V_DIM-1);
-    residual = gsl_vector_alloc(V_DIM);
     b = gsl_vector_alloc(V_DIM);
     A = gsl_matrix_alloc(V_DIM, V_DIM-1);
 
     for(int i = 0; i < V_DIM; i++)
-        gsl_vector_set(b, i, gsl_vector_get(seg1->start, i)+gsl_vector_get(seg2->start, i));
+        gsl_vector_set(b, i, gsl_vector_get(seg2->start, i)-gsl_vector_get(seg1->start, i));
 
     for(int i = 0; i < V_DIM; i++){
         gsl_matrix_set(A, i, 0, gsl_vector_get(seg1->slope, i));
-        gsl_matrix_set(A, i, 1, gsl_vector_get(seg2->slope, i));
+        gsl_matrix_set(A, i, 1, -gsl_vector_get(seg2->slope, i));
     }
 
     if( (err = gsl_linalg_QR_decomp(A, tau)) ){
         printf("Error: QR decomp. %d\n", err);
-        return GSL_FAILURE;
+        ret = GSL_FAILURE;
+        goto cleanup;
     }
 
     if( (err = gsl_linalg_QR_lssolve(A, tau, b, x, residual)) ){
         printf("Error: QR lssolve. %d\n", err);
-        return GSL_FAILURE;
+        ret = GSL_FAILURE;
+        goto cleanup;
     }
 
-    if(gsl_vector_isnull(residual)){
-        printf("x:\n");
-        gsl_vector_fprintf(stdout, x, "%f");
-        printf("Residual:\n");
-        gsl_vector_fprintf(stdout, residual, "%f");
+    if( !gsl_vector_isnull(residual) ){
+        ret = GSL_FAILURE;
+        goto cleanup;
     }
 
     // TODO: if solution, check bounds for seg1, seg2 begin and end
 
-    return GSL_SUCCESS;
+    ret = GSL_SUCCESS;
 
-    // TODO: Free the vectors
+cleanup:
+    gsl_matrix_free(A);
+    gsl_vector_free(b);
+    gsl_vector_free(tau);
+    return ret;
+}
+
+int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
+
+    //  Check if x is infinity, return -1 if it is
+    for(int i = 0 ; i < x->size; i++)
+        if(gsl_isinf(gsl_vector_get(x, i)))
+            return GSL_FAILURE;
+
+    //  
+
+    return GSL_SUCCESS;
 }
 
 int main(int argc, char **argv){
@@ -120,6 +134,7 @@ int main(int argc, char **argv){
     int err;
 
     gsl_vector **vert;
+    gsl_vector *x, *residual;
     seg_3 **seg;
 
     if(argc != 3){
@@ -165,8 +180,18 @@ int main(int argc, char **argv){
 
     for(int i = 0; i < num_s; i++){
         for(int j = i+1; j < num_s; j++){
-            printf("\nSeg %d and seg %d\n", i, j);
-            segment_intersect_3(seg[i], seg[j]);
+            x = gsl_vector_calloc(V_DIM-1);
+            residual = gsl_vector_calloc(V_DIM);
+            if( segment_intersect_3(seg[i], seg[j], x, residual) == GSL_SUCCESS ){
+                printf("Seg %d and seg %d\n", i, j);
+                printf("x:\n");
+                gsl_vector_fprintf(stdout, x, "%f");
+                printf("residual:\n");
+                gsl_vector_fprintf(stdout, residual, "%f");
+                printf("\n");
+            }
+            gsl_vector_free(x);
+            gsl_vector_free(residual);
         }
     }
 
