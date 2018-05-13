@@ -113,33 +113,46 @@ cleanup:
 int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
 
     gsl_vector *sum;
+    int ret;
 
     sum = gsl_vector_calloc(seg1->start->size);
 
     //  Check if x is infinity, return -1 if it is
-    for(int i = 0 ; i < x->size; i++)
-        if(gsl_isinf(gsl_vector_get(x, i)))
-            return GSL_FAILURE;
+    for(int i = 0 ; i < x->size; i++){
+        if(gsl_isinf(gsl_vector_get(x, i))){
+            ret = GSL_FAILURE;
+            goto cleanup;
+        }
+    }
+
 
     // slope*x+start
-    gsl_vector_add(sum, seg1->slope);
+    gsl_vector_memcpy(sum, seg1->slope);
     gsl_vector_scale(sum, gsl_vector_get(x, 0));
     gsl_vector_add(sum, seg1->start);
 
     //Do I need to do all of the checks?
     if( !((gsl_vector_get(sum, 0) > gsl_vector_get(seg1->start, 0) && gsl_vector_get(sum, 0) < gsl_vector_get(seg1->end, 0)) ||
-        (gsl_vector_get(sum, 0) < gsl_vector_get(seg1->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg1->end, 0))) )
-        return GSL_FAILURE;
+        (gsl_vector_get(sum, 0) < gsl_vector_get(seg1->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg1->end, 0))) ){
+        ret = GSL_FAILURE;
+        goto cleanup;
+    }
 
     gsl_vector_memcpy(sum, seg2->slope);
     gsl_vector_scale(sum, gsl_vector_get(x, 1));
     gsl_vector_add(sum, seg2->start);
 
     if( !((gsl_vector_get(sum, 0) > gsl_vector_get(seg2->start, 0) && gsl_vector_get(sum, 0) < gsl_vector_get(seg2->end, 0)) ||
-        (gsl_vector_get(sum, 0) < gsl_vector_get(seg2->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg2->end, 0))) )
-        return GSL_FAILURE;
+        (gsl_vector_get(sum, 0) < gsl_vector_get(seg2->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg2->end, 0))) ){
+        ret = GSL_FAILURE;
+        goto cleanup;
+    }
 
-    return GSL_SUCCESS;
+    ret = GSL_SUCCESS;
+
+cleanup:
+    gsl_vector_free(sum);
+    return ret;
 }
 
 int main(int argc, char **argv){
