@@ -11,6 +11,8 @@
 //Vertex dimensions. Generally 3, could be 2
 #define V_DIM 3
 
+#define SIGMA 0.00000000000000000000000000001
+
 void print_vert_3(gsl_vector **vert, int num_v){
     for(int i = 0; i < num_v; i++){
         printf("Vertex %d\n", i);
@@ -19,7 +21,15 @@ void print_vert_3(gsl_vector **vert, int num_v){
     }
 }
 
-void print_seg_3(seg_3 **seg, int num_s){
+void print_seg_3(seg_3 **seg, int idx){
+    printf("Segment %d\nStart:\n", idx);
+    gsl_vector_fprintf(stdout, seg[idx]->start, "%f");
+    printf("End:\n");
+    gsl_vector_fprintf(stdout, seg[idx]->end, "%f");
+    printf("\n");
+}
+
+void print_seg_3_all(seg_3 **seg, int num_s){
     for(int i = 0; i < num_s; i++){
         printf("Segment %d\nStart:\n", i);
         gsl_vector_fprintf(stdout, seg[i]->start, "%f");
@@ -94,7 +104,8 @@ int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x, gsl_vector *res
         goto cleanup;
     }
 
-    if( !gsl_vector_isnull(residual) ){
+    gsl_vector_mul(residual, residual);
+    if( gsl_vector_max(residual) > SIGMA ){
         ret = GSL_FAILURE;
         goto cleanup;
     }
@@ -209,15 +220,18 @@ int main(int argc, char **argv){
         }
     }
 
-    //print_seg_3(seg, num_s);
+    //print_seg_3_all(seg, num_s);
 
     for(int i = 0; i < num_s; i++){
         for(int j = i+1; j < num_s; j++){
             x = gsl_vector_calloc(V_DIM-1);
             residual = gsl_vector_calloc(V_DIM);
             if( segment_intersect_3(seg[i], seg[j], x, residual) == GSL_SUCCESS ){
+            //segment_intersect_3(seg[i], seg[j], x, residual);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
+                    print_seg_3(seg, i);
+                    print_seg_3(seg, j);
                     printf("x:\n");
                     gsl_vector_fprintf(stdout, x, "%f");
                     printf("residual:\n");
