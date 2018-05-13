@@ -7,8 +7,13 @@ CC=gcc
 SRC=./src
 BIN=./bin
 
-$(BIN)/$(P): $(SRC)/$(P).c
+$(BIN)/$(P): $(SRC)/$(P).c | $(BIN)
 	$(CC) $(CFLAGS) $< $(LDLIBS) $(LDFLAGS) -o $@
 
+$(BIN):
+	mkdir -p $@
+
+.PHONY: clean
 clean:
-	rm $(BIN)/*
+	-rm -f $(BIN)/*
+
