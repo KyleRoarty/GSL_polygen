@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_errno.h>
@@ -143,21 +144,27 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     gsl_vector_scale(sum, gsl_vector_get(x, 0));
     gsl_vector_add(sum, seg1->start);
 
-    gsl_vector_fprintf(stdout, sum, "%1.50f");
+    //gsl_vector_fprintf(stdout, sum, "%1.50f");
 
     //Do I need to do all of the checks?
     //Do the check if the start/end aren't equal
     for(int i = 0; i < 3; i++){
         if( gsl_vector_get(seg1->start, i) != gsl_vector_get(seg1->end, i) ){
-            if( !((gsl_vector_get(sum, i) > gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg1->end, i)) ||
-                (gsl_vector_get(sum, i) < gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg1->end, i))) ){
+            if( (gsl_vector_get(sum, i) < gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg1->end, i)) ||
+                (gsl_vector_get(sum, i) > gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg1->end, i)) ){
+                ret = GSL_FAILURE;
+                goto cleanup;
+            }
+            // Close enough to the actual value
+            if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg1->start, i)) < DELTA ||
+                fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg1->end, i)) < DELTA ){
                 ret = GSL_FAILURE;
                 goto cleanup;
             }
         }
     }
 
-    gsl_vector_fprintf(stdout, sum, "%1.50f");
+    //gsl_vector_fprintf(stdout, sum, "%1.50f");
 
     gsl_vector_memcpy(sum, seg2->slope);
     gsl_vector_scale(sum, gsl_vector_get(x, 1));
@@ -165,8 +172,14 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
 
     for(int i = 0; i < 3; i++){
         if( !(gsl_vector_get(seg2->start, i) == gsl_vector_get(seg2->end, i)) ){
-            if( !((gsl_vector_get(sum, i) > gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg2->end, i)) ||
-                (gsl_vector_get(sum, i) < gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg2->end, i))) ){
+            if( (gsl_vector_get(sum, i) < gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg2->end, i)) ||
+                (gsl_vector_get(sum, i) > gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg2->end, i)) ){
+                ret = GSL_FAILURE;
+                goto cleanup;
+            }
+            // Close enough to the actual value
+            if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg2->start, i)) < DELTA ||
+                fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg2->end, i)) < DELTA ){
                 ret = GSL_FAILURE;
                 goto cleanup;
             }
@@ -241,17 +254,16 @@ int main(int argc, char **argv){
             x = gsl_vector_calloc(V_DIM-1);
             residual = gsl_vector_calloc(V_DIM);
             if( segment_intersect_3(seg[i], seg[j], x, residual) == GSL_SUCCESS ){
-//            segment_intersect_3(seg[i], seg[j], x, residual);
-            printf("%d; %d\n", i, j);
+            //printf("%d; %d\n", i, j);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
-                    print_seg_3(seg, i);
-                    print_seg_3(seg, j);
-                    printf("x:\n");
-                    gsl_vector_fprintf(stdout, x, "%1.50f");
-                    printf("residual:\n");
-                    gsl_vector_fprintf(stdout, residual, "%1.50f");
-                    printf("\n");
+//                    print_seg_3(seg, i);
+//                    print_seg_3(seg, j);
+//                    printf("x:\n");
+//                    gsl_vector_fprintf(stdout, x, "%1.50f");
+//                    printf("residual:\n");
+//                    gsl_vector_fprintf(stdout, residual, "%1.50f");
+//                    printf("\n");
                 }
             }
             gsl_vector_free(x);
