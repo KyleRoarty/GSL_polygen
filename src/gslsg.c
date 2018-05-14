@@ -77,11 +77,12 @@ int create_vertex_3(FILE *fp, gsl_vector *v){
 }
 
 // TODO: replace V_DIM with a different constant here
-int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x, gsl_vector *residual){
+int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     int err, ret;
     gsl_matrix *A;
-    gsl_vector *tau, *b;
+    gsl_vector *tau, *b, *residual;
 
+    residual = gsl_vector_alloc(V_DIM);
     tau = gsl_vector_alloc(V_DIM-1);
     b = gsl_vector_alloc(V_DIM);
     A = gsl_matrix_alloc(V_DIM, V_DIM-1);
@@ -120,6 +121,7 @@ cleanup:
     gsl_matrix_free(A);
     gsl_vector_free(b);
     gsl_vector_free(tau);
+    gsl_vector_free(residual);
     return ret;
 }
 
@@ -205,7 +207,7 @@ int main(int argc, char **argv){
     int err;
 
     gsl_vector **vert;
-    gsl_vector *x, *residual;
+    gsl_vector *x;
     seg_3 **seg;
 
     if(argc != 3){
@@ -252,8 +254,7 @@ int main(int argc, char **argv){
     for(int i = 0; i < num_s; i++){
         for(int j = i+1; j < num_s; j++){
             x = gsl_vector_calloc(V_DIM-1);
-            residual = gsl_vector_calloc(V_DIM);
-            if( segment_intersect_3(seg[i], seg[j], x, residual) == GSL_SUCCESS ){
+            if( segment_intersect_3(seg[i], seg[j], x) == GSL_SUCCESS ){
             //printf("%d; %d\n", i, j);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
@@ -261,13 +262,10 @@ int main(int argc, char **argv){
 //                    print_seg_3(seg, j);
 //                    printf("x:\n");
 //                    gsl_vector_fprintf(stdout, x, "%1.50f");
-//                    printf("residual:\n");
-//                    gsl_vector_fprintf(stdout, residual, "%1.50f");
 //                    printf("\n");
                 }
             }
             gsl_vector_free(x);
-            gsl_vector_free(residual);
         }
     }
 
