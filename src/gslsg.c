@@ -11,6 +11,7 @@
 //Vertex dimensions. Generally 3, could be 2
 #define V_DIM 3
 
+#define DELTA 0.0000000001
 #define SIGMA 0.00000000000000000000000000001
 
 void print_vert_3(gsl_vector **vert, int num_v){
@@ -142,21 +143,34 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     gsl_vector_scale(sum, gsl_vector_get(x, 0));
     gsl_vector_add(sum, seg1->start);
 
+    gsl_vector_fprintf(stdout, sum, "%1.50f");
+
     //Do I need to do all of the checks?
-    if( !((gsl_vector_get(sum, 0) > gsl_vector_get(seg1->start, 0) && gsl_vector_get(sum, 0) < gsl_vector_get(seg1->end, 0)) ||
-        (gsl_vector_get(sum, 0) < gsl_vector_get(seg1->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg1->end, 0))) ){
-        ret = GSL_FAILURE;
-        goto cleanup;
+    //Do the check if the start/end aren't equal
+    for(int i = 0; i < 3; i++){
+        if( gsl_vector_get(seg1->start, i) != gsl_vector_get(seg1->end, i) ){
+            if( !((gsl_vector_get(sum, i) > gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg1->end, i)) ||
+                (gsl_vector_get(sum, i) < gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg1->end, i))) ){
+                ret = GSL_FAILURE;
+                goto cleanup;
+            }
+        }
     }
+
+    gsl_vector_fprintf(stdout, sum, "%1.50f");
 
     gsl_vector_memcpy(sum, seg2->slope);
     gsl_vector_scale(sum, gsl_vector_get(x, 1));
     gsl_vector_add(sum, seg2->start);
 
-    if( !((gsl_vector_get(sum, 0) > gsl_vector_get(seg2->start, 0) && gsl_vector_get(sum, 0) < gsl_vector_get(seg2->end, 0)) ||
-        (gsl_vector_get(sum, 0) < gsl_vector_get(seg2->start, 0) && gsl_vector_get(sum, 0) > gsl_vector_get(seg2->end, 0))) ){
-        ret = GSL_FAILURE;
-        goto cleanup;
+    for(int i = 0; i < 3; i++){
+        if( !(gsl_vector_get(seg2->start, i) == gsl_vector_get(seg2->end, i)) ){
+            if( !((gsl_vector_get(sum, i) > gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg2->end, i)) ||
+                (gsl_vector_get(sum, i) < gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg2->end, i))) ){
+                ret = GSL_FAILURE;
+                goto cleanup;
+            }
+        }
     }
 
     ret = GSL_SUCCESS;
@@ -227,15 +241,16 @@ int main(int argc, char **argv){
             x = gsl_vector_calloc(V_DIM-1);
             residual = gsl_vector_calloc(V_DIM);
             if( segment_intersect_3(seg[i], seg[j], x, residual) == GSL_SUCCESS ){
-            //segment_intersect_3(seg[i], seg[j], x, residual);
+//            segment_intersect_3(seg[i], seg[j], x, residual);
+            printf("%d; %d\n", i, j);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
                     print_seg_3(seg, i);
                     print_seg_3(seg, j);
                     printf("x:\n");
-                    gsl_vector_fprintf(stdout, x, "%f");
+                    gsl_vector_fprintf(stdout, x, "%1.50f");
                     printf("residual:\n");
-                    gsl_vector_fprintf(stdout, residual, "%f");
+                    gsl_vector_fprintf(stdout, residual, "%1.50f");
                     printf("\n");
                 }
             }
