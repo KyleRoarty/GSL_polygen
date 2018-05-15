@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <math.h>
+#include <gmodule.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_errno.h>
@@ -41,6 +43,36 @@ void print_seg_3_all(seg_3 **seg, int num_s){
         gsl_vector_fprintf(stdout, seg[i]->slope, "%f");
         printf("\n");
     }
+}
+
+gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
+    if(value == NULL)
+        return true;
+
+    printf("%2d, ", GPOINTER_TO_INT(value));
+    return false;
+}
+
+int search_integers(gconstpointer a, gconstpointer b){
+    int int_a, int_b;
+    int_a = GPOINTER_TO_INT(a);
+    int_b = GPOINTER_TO_INT(b);
+
+    if(int_a < int_b)
+        return -1;
+
+    if(int_a > int_b)
+        return 1;
+
+    return 0;
+}
+
+int sort_integers(gconstpointer a, gconstpointer b){
+    int int_a, int_b;
+    int_a = GPOINTER_TO_INT(a);
+    int_b = GPOINTER_TO_INT(b);
+
+    return int_a-int_b;
 }
 
 //For a *_3 function, constants, like for gsl_vector_malloc, will be 3
@@ -125,6 +157,7 @@ cleanup:
     return ret;
 }
 
+// TODO: Double for loop; don't repeat code for seg1, seg2
 int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
 
     gsl_vector *sum;
@@ -195,6 +228,71 @@ cleanup:
     return ret;
 }
 
+// TODO: Don't repeat code for a, b;
+// TODO: replace conditionals with case statement?
+int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
+    // For a, b: Check if in safe, in overlap
+    bool safe_a=false, ignore_a=false, safe_b=false, ignore_b=false;
+
+    if(g_tree_lookup(safe, GINT_TO_POINTER(a)))
+        safe_a = true;
+    if(g_tree_lookup(ignore, GINT_TO_POINTER(a)))
+        ignore_a = true;
+
+    if(g_tree_lookup(safe, GINT_TO_POINTER(b)))
+        safe_b = true;
+    if(g_tree_lookup(ignore, GINT_TO_POINTER(b)))
+        ignore_b = true;
+
+//    if(g_tree_search(safe, search_integers, GINT_TO_POINTER(a)))
+//        safe_a = true;
+//    if(g_tree_search(ignore, search_integers, GINT_TO_POINTER(a)))
+//        ignore_a = true;
+//
+//    if(g_tree_search(safe, search_integers, GINT_TO_POINTER(b)))
+//        safe_b = true;
+//    if(g_tree_search(ignore, search_integers, GINT_TO_POINTER(b)))
+//        ignore_b = true;
+
+    printf("s_a: %d, i_a: %d, s_b: %d, i_b: %d\n", safe_a, ignore_a, safe_b, ignore_b);
+
+    if((safe_a && ignore_a) || (safe_b && ignore_b))
+        return -1;
+
+    if((safe_a && ignore_b) || (ignore_a && safe_b) || (ignore_a && ignore_b))
+        return 0;
+
+    if(safe_a && safe_b){
+        g_tree_remove(safe, GINT_TO_POINTER(b));
+        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        return 0;
+    }
+
+    if(safe_a){
+        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        return 0;
+    }
+
+    if(safe_b){
+        g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
+        return 0;
+    }
+
+    if(ignore_a){
+        g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        return 0;
+    }
+
+    if(ignore_b){
+        g_tree_insert(safe, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
+        return 0;
+    }
+
+    g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
+    g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+    return 0;
+}
+
 int main(int argc, char **argv){
     FILE *fp;
     //number of points/vertices, number of segments
@@ -209,6 +307,7 @@ int main(int argc, char **argv){
     gsl_vector **vert;
     gsl_vector *x;
     seg_3 **seg;
+    GTree *safe, *ignore;
 
     if(argc != 3){
         //n is number of vertices
@@ -216,6 +315,9 @@ int main(int argc, char **argv){
         printf("USAGE: shapegen <n> <file>\n");
         exit(-1);
     }
+
+    safe = g_tree_new(sort_integers);
+    ignore = g_tree_new(sort_integers);
 
     num_v = atoi(argv[1]);
     vert = malloc(num_v*sizeof(gsl_vector *));
@@ -258,6 +360,7 @@ int main(int argc, char **argv){
             //printf("%d; %d\n", i, j);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
+                    resolve_overlap(safe, ignore, i, j);
 //                    print_seg_3(seg, i);
 //                    print_seg_3(seg, j);
 //                    printf("x:\n");
@@ -268,6 +371,13 @@ int main(int argc, char **argv){
             gsl_vector_free(x);
         }
     }
+
+    printf("Safe: \n");
+    g_tree_foreach(safe, print_g_tree, GINT_TO_POINTER(52));
+    printf("\n");
+    printf("Ignore: \n");
+    g_tree_foreach(ignore, print_g_tree, GINT_TO_POINTER(52));
+    printf("\n");
 
     //Memory management section
 
@@ -282,5 +392,8 @@ int main(int argc, char **argv){
     free(seg);
     free(vert);
     fclose(fp);
+
+    g_tree_destroy(ignore);
+    g_tree_destroy(safe);
     return(0);
 }
