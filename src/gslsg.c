@@ -53,20 +53,6 @@ gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
     return false;
 }
 
-int search_integers(gconstpointer a, gconstpointer b){
-    int int_a, int_b;
-    int_a = GPOINTER_TO_INT(a);
-    int_b = GPOINTER_TO_INT(b);
-
-    if(int_a < int_b)
-        return -1;
-
-    if(int_a > int_b)
-        return 1;
-
-    return 0;
-}
-
 int sort_integers(gconstpointer a, gconstpointer b){
     int int_a, int_b;
     int_a = GPOINTER_TO_INT(a);
@@ -244,17 +230,7 @@ int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
     if(g_tree_lookup(ignore, GINT_TO_POINTER(b)))
         ignore_b = true;
 
-//    if(g_tree_search(safe, search_integers, GINT_TO_POINTER(a)))
-//        safe_a = true;
-//    if(g_tree_search(ignore, search_integers, GINT_TO_POINTER(a)))
-//        ignore_a = true;
-//
-//    if(g_tree_search(safe, search_integers, GINT_TO_POINTER(b)))
-//        safe_b = true;
-//    if(g_tree_search(ignore, search_integers, GINT_TO_POINTER(b)))
-//        ignore_b = true;
-
-    printf("s_a: %d, i_a: %d, s_b: %d, i_b: %d\n", safe_a, ignore_a, safe_b, ignore_b);
+    //printf("s_a: %d, i_a: %d, s_b: %d, i_b: %d\n", safe_a, ignore_a, safe_b, ignore_b);
 
     if((safe_a && ignore_a) || (safe_b && ignore_b))
         return -1;
@@ -335,8 +311,6 @@ int main(int argc, char **argv){
                 exit(-1);
     }
 
-    //print_vert_3(vert, num_v);
-
     iter = 0;
     for(int i = 0; i < num_v; i++){
         for(int j = i+1; j < num_v; j++){
@@ -351,21 +325,13 @@ int main(int argc, char **argv){
         }
     }
 
-    //print_seg_3_all(seg, num_s);
-
     for(int i = 0; i < num_s; i++){
         for(int j = i+1; j < num_s; j++){
             x = gsl_vector_calloc(V_DIM-1);
             if( segment_intersect_3(seg[i], seg[j], x) == GSL_SUCCESS ){
-            //printf("%d; %d\n", i, j);
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                     printf("Seg %d and seg %d\n", i, j);
                     resolve_overlap(safe, ignore, i, j);
-//                    print_seg_3(seg, i);
-//                    print_seg_3(seg, j);
-//                    printf("x:\n");
-//                    gsl_vector_fprintf(stdout, x, "%1.50f");
-//                    printf("\n");
                 }
             }
             gsl_vector_free(x);
