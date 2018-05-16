@@ -9,8 +9,15 @@ typedef struct{
     gsl_vector *slope;
 } seg_3;
 
+typedef struct{
+    gsl_vector *vertex[3];
+} tri_3;
 
-
+typedef struct{
+    seg_3 **segs;
+    gsl_vector *comp;
+    int *count;
+} args;
 
 
 

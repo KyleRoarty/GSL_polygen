@@ -269,16 +269,31 @@ int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
     return 0;
 }
 
+gboolean same_point(gpointer key, gpointer value, gpointer data){
+    args *comp_args;
+    seg_3 *seg;
+    comp_args = (args *)data;
+    seg = comp_args->segs[GPOINTER_TO_INT(value)];
+    if(seg->start == comp_args->comp || seg->end == comp_args->comp)
+        *(comp_args->count) = *(comp_args->count) + 1;
+    return false;
+}
+
 int main(int argc, char **argv){
     FILE *fp;
     //number of points/vertices, number of segments
-    int num_v, num_s;
+    int num_v, num_s, num_t;
 
     //used to initialize segments
     int iter;
 
     //Check error from functions
     int err;
+
+    //Used when counting overlapping overlaps (because that makes sense)
+    int count;
+
+    args *tri_ol;
 
     gsl_vector **vert;
     gsl_vector *x;
@@ -291,6 +306,8 @@ int main(int argc, char **argv){
         printf("USAGE: shapegen <n> <file>\n");
         exit(-1);
     }
+
+    tri_ol = malloc(sizeof(args));
 
     safe = g_tree_new(sort_integers);
     ignore = g_tree_new(sort_integers);
@@ -345,6 +362,27 @@ int main(int argc, char **argv){
     g_tree_foreach(ignore, print_g_tree, GINT_TO_POINTER(52));
     printf("\n");
 
+
+    //Each triangle needs 3 unique segments
+    //However the entire search space isn't covered
+    num_t = (num_v)*(num_v-1)*(num_v-2)/6;
+    printf("num_t: %d\n", num_t);
+    num_t -= g_tree_nnodes(ignore)*(num_t*3/num_s);
+    printf("num_t: %d\n", num_t);
+
+    tri_ol->segs = seg;
+    for(int i = 0; i < num_v; i++){
+        count = 0;
+        tri_ol->count = &count;
+        tri_ol->comp = vert[i];
+        g_tree_foreach(ignore, same_point, (gpointer)tri_ol);
+        num_t += ((count)*(count-1)/2);
+        printf("Count %d: %d\n", i, count);
+    }
+
+    printf("Number of triangles: %d\n", num_t);
+
+
     //Memory management section
 
     for(int i = num_s-1; i >= 0; i--){
@@ -361,5 +399,7 @@ int main(int argc, char **argv){
 
     g_tree_destroy(ignore);
     g_tree_destroy(safe);
+
+    free(tri_ol);
     return(0);
 }
