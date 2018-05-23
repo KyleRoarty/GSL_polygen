@@ -431,6 +431,10 @@ int main(int argc, char **argv){
 
     //Memory management section
 
+    for(int i = num_t-1; i >= 0; i--)
+        free(tri[i]);
+    free(tri);
+
     for(int i = num_s-1; i >= 0; i--){
         gsl_vector_free(seg[i]->slope);
         free(seg[i]);
