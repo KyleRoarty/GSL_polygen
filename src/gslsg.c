@@ -45,6 +45,20 @@ void print_seg_3_all(seg_3 **seg, int num_s){
     }
 }
 
+//[from, to)
+int sum(int from, int to){
+    int ret = 0;
+    for(int i = from; i > to; i--)
+        ret += i;
+    return ret;
+}
+
+// x < y; sz = num points (cla)
+// x, y are points that define a segment
+int segFromI(int x, int y, int sz){
+    return x*sz-sum(x, 0)+y-(x+1);
+}
+
 gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
     if(value == NULL)
         return true;
@@ -293,12 +307,16 @@ int main(int argc, char **argv){
     //Used when counting overlapping overlaps (because that makes sense)
     int count;
 
+    // TODO: Rename tri_ol to something that makes more sense
     args *tri_ol;
 
     gsl_vector **vert;
     gsl_vector *x;
     seg_3 **seg;
     GTree *safe, *ignore;
+
+    int currTri;
+    tri_3 **tri;
 
     if(argc != 3){
         //n is number of vertices
@@ -382,6 +400,34 @@ int main(int argc, char **argv){
 
     printf("Number of triangles: %d\n", num_t);
 
+    tri = malloc(num_t*sizeof(tri_3 *));
+    currTri = 0;
+    // i < num_v-2 maybe?
+    for(int i = 0; i < num_v; i++){
+        for(int j = i+1; j < num_v; j++){
+            //Check if segment is in the no-go list
+            if(g_tree_lookup(ignore, GINT_TO_POINTER(segFromI(i, j, num_v))))
+                continue;
+            for(int k = j+1; k < num_v; k++){
+                //Check if i-k, j-k is in the no-go list
+                if(g_tree_lookup(ignore, GINT_TO_POINTER(segFromI(i, k, num_v))) ||
+                   g_tree_lookup(ignore, GINT_TO_POINTER(segFromI(j, k, num_v))))
+                    continue;
+
+                tri[currTri] = malloc(sizeof(tri_3));
+                tri[currTri]->vert[0] = vert[i];
+                tri[currTri]->idx[0] = i;
+                tri[currTri]->vert[1] = vert[j];
+                tri[currTri]->idx[1] = j;
+                tri[currTri]->vert[2] = vert[k];
+                tri[currTri]->idx[2] = k;
+                currTri++;
+            }
+        }
+    }
+
+    for(int i = 0; i < num_t; i++)
+        printf("Tri %d: (%d, %d, %d)\n", i, tri[i]->idx[0], tri[i]->idx[1], tri[i]->idx[2]);
 
     //Memory management section
 

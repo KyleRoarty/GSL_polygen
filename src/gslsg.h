@@ -10,7 +10,8 @@ typedef struct{
 } seg_3;
 
 typedef struct{
-    gsl_vector *vertex[3];
+    gsl_vector *vert[3];
+    int idx[3];
 } tri_3;
 
 typedef struct{
