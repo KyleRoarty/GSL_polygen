@@ -1,3 +1,5 @@
+//TODO: Error when things break, don't just keep progressing
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -63,7 +65,10 @@ gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
     if(value == NULL)
         return true;
 
-    printf("%2d, ", GPOINTER_TO_INT(value));
+    seg_3 **seg = (seg_3 **)data;
+    int i = GPOINTER_TO_INT(value)-1;
+
+    printf("%2d (%d, %d); ", i, seg[i]->idx[0], seg[i]->idx[1]);
     return false;
 }
 
@@ -254,32 +259,32 @@ int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
 
     if(safe_a && safe_b){
         g_tree_remove(safe, GINT_TO_POINTER(b));
-        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
         return 0;
     }
 
     if(safe_a){
-        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
         return 0;
     }
 
     if(safe_b){
-        g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
+        g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
         return 0;
     }
 
     if(ignore_a){
-        g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+        g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
         return 0;
     }
 
     if(ignore_b){
-        g_tree_insert(safe, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
+        g_tree_insert(safe, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
         return 0;
     }
 
-    g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a));
-    g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b));
+    g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
+    g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
     return 0;
 }
 
@@ -287,9 +292,61 @@ gboolean same_point(gpointer key, gpointer value, gpointer data){
     args *comp_args;
     seg_3 *seg;
     comp_args = (args *)data;
-    seg = comp_args->segs[GPOINTER_TO_INT(value)];
+    seg = comp_args->segs[GPOINTER_TO_INT(value)-1];
     if(seg->start == comp_args->comp || seg->end == comp_args->comp)
         *(comp_args->count) = *(comp_args->count) + 1;
+    return false;
+}
+
+gboolean ig_tri_inner(gpointer key, gpointer value, gpointer data){
+
+    d_args *args = (d_args *)data;
+    seg_3 *outer, *inner;
+    int idx = -1;
+
+    if(!*(args->at_key)){
+        if(args->key == key)
+            *(args->at_key) = true;
+        return false;
+    }
+
+    outer = args->segs[GPOINTER_TO_INT(args->key)];
+    inner = args->segs[GPOINTER_TO_INT(key)];
+
+    // TODO: Change how seg_3 is structured so I can double for this?
+    if(outer->start == inner->start)
+        idx = segFromI(fmin(outer->idx[1], inner->idx[1]), fmax(outer->idx[1], inner->idx[1]), args->num_v);
+    else if(outer->start == inner->end)
+        idx = segFromI(fmin(outer->idx[1], inner->idx[0]), fmax(outer->idx[1], inner->idx[0]), args->num_v);
+    else if(outer->end == inner->end)
+        idx = segFromI(fmin(outer->idx[0], inner->idx[0]), fmax(outer->idx[0], inner->idx[0]), args->num_v);
+    else if(outer->end == inner->start)
+        idx = segFromI(fmin(outer->idx[0], inner->idx[1]), fmax(outer->idx[0], inner->idx[1]), args->num_v);
+
+    if(idx == -1 || GINT_TO_POINTER(idx) <= key || GINT_TO_POINTER(idx) <= args->key)
+        return false;
+
+    if(g_tree_lookup(args->tree, GINT_TO_POINTER(idx)))
+        *(args->lc) = *(args->lc) + 1;
+
+
+    return false;
+}
+
+gboolean ig_tri_outer(gpointer key, gpointer value, gpointer data){
+
+    d_args *args = (d_args *)data;
+    int local = 0;
+    bool at_key = false;
+
+    args->lc = &local;
+    args->at_key = &at_key;
+    args->key = key;
+
+    g_tree_foreach(args->tree, ig_tri_inner, (gpointer)args);
+
+    *(args->gc) = *(args->gc) + local;
+
     return false;
 }
 
@@ -309,6 +366,8 @@ int main(int argc, char **argv){
 
     // TODO: Rename tri_ol to something that makes more sense
     args *tri_ol;
+    d_args *ig_tri_args;
+
 
     gsl_vector **vert;
     gsl_vector *x;
@@ -318,6 +377,12 @@ int main(int argc, char **argv){
     int currTri;
     tri_3 **tri;
 
+    tri_share *seg_in_tri;
+    int l;
+    int num_t_use;
+    // triangles per segment, ignored per segment
+    int tps, ips;
+
     if(argc != 3){
         //n is number of vertices
         //file is csv of 3d vertices
@@ -326,6 +391,7 @@ int main(int argc, char **argv){
     }
 
     tri_ol = malloc(sizeof(args));
+    ig_tri_args = malloc(sizeof(d_args));
 
     safe = g_tree_new(sort_integers);
     ignore = g_tree_new(sort_integers);
@@ -352,6 +418,8 @@ int main(int argc, char **argv){
             seg[iter] = malloc(sizeof(seg_3));
             seg[iter]->start = vert[i];
             seg[iter]->end = vert[j];
+            seg[iter]->idx[0] = i;
+            seg[iter]->idx[1] = j;
             if( (err = segment_slope_3(seg[iter])) ){
                 //handle error
                 printf("Error! From segment_slope_3\n");
@@ -365,7 +433,9 @@ int main(int argc, char **argv){
             x = gsl_vector_calloc(V_DIM-1);
             if( segment_intersect_3(seg[i], seg[j], x) == GSL_SUCCESS ){
                 if( overlap_in_bounds_3(seg[i], seg[j], x) == GSL_SUCCESS ){
-                    printf("Seg %d and seg %d\n", i, j);
+                    printf("Seg %d (%d, %d) and seg %d (%d, %d)\n",
+                            i, seg[i]->idx[0], seg[i]->idx[1],
+                            j, seg[j]->idx[0], seg[j]->idx[1]);
                     resolve_overlap(safe, ignore, i, j);
                 }
             }
@@ -374,10 +444,10 @@ int main(int argc, char **argv){
     }
 
     printf("Safe: \n");
-    g_tree_foreach(safe, print_g_tree, GINT_TO_POINTER(52));
+    g_tree_foreach(safe, print_g_tree, (gpointer)seg);
     printf("\n");
     printf("Ignore: \n");
-    g_tree_foreach(ignore, print_g_tree, GINT_TO_POINTER(52));
+    g_tree_foreach(ignore, print_g_tree, (gpointer)seg);
     printf("\n");
 
 
@@ -385,7 +455,7 @@ int main(int argc, char **argv){
     //However the entire search space isn't covered
     num_t = (num_v)*(num_v-1)*(num_v-2)/6;
     printf("num_t: %d\n", num_t);
-    num_t -= g_tree_nnodes(ignore)*(num_t*3/num_s);
+    num_t -= g_tree_nnodes(ignore)*(num_v-2);
     printf("num_t: %d\n", num_t);
 
     tri_ol->segs = seg;
@@ -398,7 +468,25 @@ int main(int argc, char **argv){
         printf("Count %d: %d\n", i, count);
     }
 
+    count = 0;
+    ig_tri_args->segs = seg;
+    ig_tri_args->tree = ignore;
+    ig_tri_args->gc = &count;
+    ig_tri_args->num_v = num_v;
+    g_tree_foreach(ignore, ig_tri_outer, (gpointer)ig_tri_args);
+    num_t -= count;
+    printf("Triangles in ignore: %d\n", count);
+
+
     printf("Number of triangles: %d\n", num_t);
+
+    seg_in_tri = malloc(num_s*sizeof(tri_share));
+
+    for(int i = 0; i < num_s; i++){
+        // Each segment is shared by at most num_v-2 triangles
+        seg_in_tri[i].tri = malloc((num_v-2)*sizeof(int));
+        seg_in_tri[i].n = 0;
+    }
 
     tri = malloc(num_t*sizeof(tri_3 *));
     currTri = 0;
@@ -414,26 +502,118 @@ int main(int argc, char **argv){
                    g_tree_lookup(ignore, GINT_TO_POINTER(segFromI(j, k, num_v))))
                     continue;
 
+                // TODO: Find a better way to do this
+
+                printf("Gen tri %2d: (%d, %d, %d)\n", currTri, i, j, k);
+
                 tri[currTri] = malloc(sizeof(tri_3));
+                tri[currTri]->use = false;
+                tri[currTri]->ignore = false;
                 tri[currTri]->vert[0] = vert[i];
                 tri[currTri]->idx[0] = i;
                 tri[currTri]->vert[1] = vert[j];
                 tri[currTri]->idx[1] = j;
                 tri[currTri]->vert[2] = vert[k];
                 tri[currTri]->idx[2] = k;
+
+                l = segFromI(i, j, num_v);
+                seg_in_tri[l].tri[seg_in_tri[l].n] = currTri;
+                seg_in_tri[l].n++;
+
+                l = segFromI(i, k, num_v);
+                seg_in_tri[l].tri[seg_in_tri[l].n] = currTri;
+                seg_in_tri[l].n++;
+
+                l = segFromI(j, k, num_v);
+                seg_in_tri[l].tri[seg_in_tri[l].n] = currTri;
+                seg_in_tri[l].n++;
+
                 currTri++;
             }
         }
     }
 
+    if(currTri != num_t)
+        exit(-1);
+
     for(int i = 0; i < num_t; i++)
-        printf("Tri %d: (%d, %d, %d)\n", i, tri[i]->idx[0], tri[i]->idx[1], tri[i]->idx[2]);
+        printf("Tri %2d: (%d, %d, %d)\n", i, tri[i]->idx[0], tri[i]->idx[1], tri[i]->idx[2]);
+
+    for(int i = 0; i < num_s; i++){
+        printf("Seg %2d (%d, %d): ", i, seg[i]->idx[0], seg[i]->idx[1]);
+        for(int j = 0; j < seg_in_tri[i].n; j++){
+            printf("%d (%d, %d, %d); ", seg_in_tri[i].tri[j],
+                    tri[seg_in_tri[i].tri[j]]->idx[0],
+                    tri[seg_in_tri[i].tri[j]]->idx[1],
+                    tri[seg_in_tri[i].tri[j]]->idx[2]);
+        }
+        printf("\n");
+    }
+
+    for(int i = 0; i < num_s; i++){
+        if(seg_in_tri[i].n != 2)
+            continue;
+        for(int j = 0; j < seg_in_tri[i].n; j++){
+            tri[seg_in_tri[i].tri[j]]->use = true;
+        }
+    }
+
+    num_t_use = 0;
+    for(int i = 0; i < num_t; i++)
+        if(tri[i]->use)
+            num_t_use++;
+    while(num_t_use < (num_v-2)*2){
+        for(int i = 0; i < num_s; i++){
+            tps = 0;
+            ips = 0;
+            if(seg_in_tri[i].n == 2)
+                continue;
+
+            for(int j = 0; j < seg_in_tri[i].n; j++){
+                if(tri[seg_in_tri[i].tri[j]]->use)
+                    tps++;
+                if(tri[seg_in_tri[i].tri[j]]->ignore)
+                    ips++;
+            }
+
+            if((tps != 2 && ips != (seg_in_tri[i].n - 2)) || (tps == 2 && ips == (seg_in_tri[i].n - 2)))
+                continue;
+
+            if(ips != (seg_in_tri[i].n - 2))
+                for(int j = 0; j < seg_in_tri[i].n; j++)
+                    if(!tri[seg_in_tri[i].tri[j]]->use)
+                        tri[seg_in_tri[i].tri[j]]->ignore = true;
+            if(tps != 2)
+                for(int j = 0; j < seg_in_tri[i].n; j++)
+                    if(!tri[seg_in_tri[i].tri[j]]->ignore)
+                        tri[seg_in_tri[i].tri[j]]->use = true;
+        }
+
+        num_t_use = 0;
+        for(int i = 0; i < num_t; i++)
+            if(tri[i]->use)
+                num_t_use++;
+
+    }
+
+    printf("Num tri used: %d/%d\n", num_t_use, (num_v-2)*2);
+
+    printf("Use these triangles: ");
+    for(int i = 0; i < num_t; i++){
+        if(tri[i]->use)
+            printf("%d ", i);
+    }
+    printf("\n");
 
     //Memory management section
 
     for(int i = num_t-1; i >= 0; i--)
         free(tri[i]);
     free(tri);
+
+    for(int i = 0; i < num_s; i++)
+        free(seg_in_tri[i].tri);
+    free(seg_in_tri);
 
     for(int i = num_s-1; i >= 0; i--){
         gsl_vector_free(seg[i]->slope);
