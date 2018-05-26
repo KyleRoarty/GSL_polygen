@@ -630,6 +630,7 @@ int main(int argc, char **argv){
     g_tree_destroy(ignore);
     g_tree_destroy(safe);
 
+    free(ig_tri_args);
     free(tri_ol);
     return(0);
 }
