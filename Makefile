@@ -1,5 +1,5 @@
 # Could also use 'pkg-config --cflags glib-2.0'
-CFLAGS= -g -Wall -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -std=gnu11
+CFLAGS= -Wall -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -std=gnu11
 LDLIBS=
 # Could also use 'pkg-config --libs glib-2.0'
 #`-Wl,-rpath -Wl,/usr/local/lib needed for gsl to work
@@ -14,6 +14,9 @@ $(BIN)/$(P): $(SRC)/$(P).c | $(BIN)
 
 $(BIN):
 	mkdir -p $@
+
+debug: CFLAGS += -g -DDEBUG
+debug: $(BIN)/$(P)
 
 .PHONY: clean
 clean:
