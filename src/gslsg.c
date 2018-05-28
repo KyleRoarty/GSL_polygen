@@ -245,7 +245,7 @@ int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
             return 0;
         }
         if(ignore_i[i]){
-            g_tree_insert(safe, GINT_TO_POINTER(idx[i+1 % 2]), GINT_TO_POINTER(idx[i+1 % 2]+1));
+            g_tree_insert(safe, GINT_TO_POINTER(idx[(i+1) % 2]), GINT_TO_POINTER(idx[(i+1) % 2]+1));
             return 0;
         }
     }
@@ -283,7 +283,7 @@ gboolean ig_tri_inner(gpointer key, gpointer value, gpointer data){
     for(int i = 0; i < 2; i++)
         for(int j = 0; j < 2; j++)
             if(outer->vert[i] == inner->vert[j])
-                idx = segFromI(fmin(outer->idx[i+1 % 2], inner->idx[j+1 % 2]), fmax(outer->idx[i+1 % 2], inner->idx[j+1 % 2]), args->num_v);
+                idx = segFromI(fmin(outer->idx[(i+1) % 2], inner->idx[(j+1) % 2]), fmax(outer->idx[(i+1) % 2], inner->idx[(j+1) % 2]), args->num_v);
 
     if(idx == -1 || GINT_TO_POINTER(idx) <= key || GINT_TO_POINTER(idx) <= args->key)
         return false;
@@ -348,6 +348,9 @@ int main(int argc, char **argv){
     tri_3 **tri;
     int currTri;
 
+    // Vertices for triangle, used when generating triangles
+    int vft[3];
+
     // Holds list of triangles sharing a given segment (seg 0, 1, 2...)
     tri_share *tri_in_seg;
 
@@ -363,9 +366,10 @@ int main(int argc, char **argv){
     if(argc != 3){
         //n is number of vertices
         //file is csv of 3d vertices
-        printf("USAGE: shapegen <n> <file>\n");
+        printf("USAGE: shapegen <n> <file.csv>\n");
         exit(-1);
     }
+    //TODO: Add check for file
 
     same_pt_args = malloc(sizeof(args));
     ig_tri_args = malloc(sizeof(d_args));
@@ -435,6 +439,7 @@ int main(int argc, char **argv){
     num_t -= g_tree_nnodes(ignore)*(num_v-2);
     printf("num_t: %d\n", num_t);
 
+    //Set up args, call for loop
     same_pt_args->segs = seg;
     for(int i = 0; i < num_v; i++){
         count = 0;
@@ -445,6 +450,7 @@ int main(int argc, char **argv){
         printf("Count %d: %d\n", i, count);
     }
 
+    //Set up args, call for loop
     count = 0;
     ig_tri_args->segs = seg;
     ig_tri_args->tree = ignore;
@@ -483,27 +489,23 @@ int main(int argc, char **argv){
 
                 printf("Gen tri %2d: (%d, %d, %d)\n", currTri, i, j, k);
 
+                vft[0] = i;
+                vft[1] = j;
+                vft[2] = k;
+
                 tri[currTri] = malloc(sizeof(tri_3));
                 tri[currTri]->use = false;
                 tri[currTri]->ignore = false;
-                tri[currTri]->vert[0] = vert[i];
-                tri[currTri]->idx[0] = i;
-                tri[currTri]->vert[1] = vert[j];
-                tri[currTri]->idx[1] = j;
-                tri[currTri]->vert[2] = vert[k];
-                tri[currTri]->idx[2] = k;
+                for(int h = 0; h < 3; h++){
+                    tri[currTri]->vert[h] = vert[vft[h]];
+                    tri[currTri]->idx[h] = vft[h];
+                }
 
-                l = segFromI(i, j, num_v);
-                tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
-                tri_in_seg[l].n++;
-
-                l = segFromI(i, k, num_v);
-                tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
-                tri_in_seg[l].n++;
-
-                l = segFromI(j, k, num_v);
-                tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
-                tri_in_seg[l].n++;
+                for(int h = 0; h < 3; h++){
+                    l = segFromI(fmin(vft[h], vft[(h+1) % 3]), fmax(vft[h], vft[(h+1) % 3]), num_v);
+                    tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
+                    tri_in_seg[l].n++;
+                }
 
                 currTri++;
             }
@@ -607,7 +609,7 @@ int main(int argc, char **argv){
         free(tri[i]);
     free(tri);
 
-    for(int i = 0; i < num_s; i++)
+    for(int i = num_s-1; i >= 0; i--)
         free(tri_in_seg[i].tri);
     free(tri_in_seg);
 
