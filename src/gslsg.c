@@ -29,18 +29,18 @@ void print_vert_3(gsl_vector **vert, int num_v){
 
 void print_seg_3(seg_3 **seg, int idx){
     printf("Segment %d\nStart:\n", idx);
-    gsl_vector_fprintf(stdout, seg[idx]->start, "%f");
+    gsl_vector_fprintf(stdout, seg[idx]->vert[0], "%f");
     printf("End:\n");
-    gsl_vector_fprintf(stdout, seg[idx]->end, "%f");
+    gsl_vector_fprintf(stdout, seg[idx]->vert[1], "%f");
     printf("\n");
 }
 
 void print_seg_3_all(seg_3 **seg, int num_s){
     for(int i = 0; i < num_s; i++){
         printf("Segment %d\nStart:\n", i);
-        gsl_vector_fprintf(stdout, seg[i]->start, "%f");
+        gsl_vector_fprintf(stdout, seg[i]->vert[0], "%f");
         printf("End:\n");
-        gsl_vector_fprintf(stdout, seg[i]->end, "%f");
+        gsl_vector_fprintf(stdout, seg[i]->vert[1], "%f");
         printf("Slope:\n");
         gsl_vector_fprintf(stdout, seg[i]->slope, "%f");
         printf("\n");
@@ -85,11 +85,11 @@ int segment_slope_3(seg_3 *seg){
     int err;
     seg->slope = gsl_vector_calloc(3);
 
-    if( (err = gsl_vector_add(seg->slope, seg->end)) ){
+    if( (err = gsl_vector_add(seg->slope, seg->vert[1])) ){
         // Handle error
         return GSL_FAILURE;
     }
-    if( (err = gsl_vector_sub(seg->slope, seg->start)) ){
+    if( (err = gsl_vector_sub(seg->slope, seg->vert[0])) ){
         // Handle error
         return GSL_FAILURE;
     }
@@ -125,7 +125,7 @@ int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     A = gsl_matrix_alloc(V_DIM, V_DIM-1);
 
     for(int i = 0; i < V_DIM; i++)
-        gsl_vector_set(b, i, gsl_vector_get(seg2->start, i)-gsl_vector_get(seg1->start, i));
+        gsl_vector_set(b, i, gsl_vector_get(seg2->vert[0], i)-gsl_vector_get(seg1->vert[0], i));
 
     for(int i = 0; i < V_DIM; i++){
         gsl_matrix_set(A, i, 0, gsl_vector_get(seg1->slope, i));
@@ -169,7 +169,7 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     segs[0] = seg1;
     segs[1] = seg2;
 
-    sum = gsl_vector_calloc(segs[0]->start->size);
+    sum = gsl_vector_calloc(segs[0]->vert[0]->size);
 
     //  Check if x is infinity, return -1 if it is
     for(int i = 0 ; i < x->size; i++){
@@ -183,22 +183,22 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
         // slope*x+start
         gsl_vector_memcpy(sum, segs[j]->slope);
         gsl_vector_scale(sum, gsl_vector_get(x, 0));
-        gsl_vector_add(sum, segs[j]->start);
+        gsl_vector_add(sum, segs[j]->vert[0]);
 
         //gsl_vector_fprintf(stdout, sum, "%1.50f");
 
         //Do I need to do all of the checks?
         //Do the check if the start/end aren't equal
         for(int i = 0; i < 3; i++){
-            if( gsl_vector_get(segs[j]->start, i) != gsl_vector_get(segs[j]->end, i) ){
-                if( (gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->end, i)) ||
-                    (gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->end, i)) ){
+            if( gsl_vector_get(segs[j]->vert[0], i) != gsl_vector_get(segs[j]->vert[1], i) ){
+                if( (gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->vert[0], i) && gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->vert[1], i)) ||
+                    (gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->vert[0], i) && gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->vert[1], i)) ){
                     ret = GSL_FAILURE;
                     goto cleanup;
                 }
                 // Close enough to the actual value
-                if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->start, i)) < DELTA ||
-                    fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->end, i)) < DELTA ){
+                if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->vert[0], i)) < DELTA ||
+                    fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->vert[1], i)) < DELTA ){
                     ret = GSL_FAILURE;
                     goto cleanup;
                 }
@@ -260,7 +260,7 @@ gboolean same_point(gpointer key, gpointer value, gpointer data){
     seg_3 *seg;
     comp_args = (args *)data;
     seg = comp_args->segs[GPOINTER_TO_INT(value)-1];
-    if(seg->start == comp_args->comp || seg->end == comp_args->comp)
+    if(seg->vert[0] == comp_args->comp || seg->vert[1] == comp_args->comp)
         *(comp_args->count) = *(comp_args->count) + 1;
     return false;
 }
@@ -280,15 +280,10 @@ gboolean ig_tri_inner(gpointer key, gpointer value, gpointer data){
     outer = args->segs[GPOINTER_TO_INT(args->key)];
     inner = args->segs[GPOINTER_TO_INT(key)];
 
-    // TODO: Change how seg_3 is structured so I can double for this?
-    if(outer->start == inner->start)
-        idx = segFromI(fmin(outer->idx[1], inner->idx[1]), fmax(outer->idx[1], inner->idx[1]), args->num_v);
-    else if(outer->start == inner->end)
-        idx = segFromI(fmin(outer->idx[1], inner->idx[0]), fmax(outer->idx[1], inner->idx[0]), args->num_v);
-    else if(outer->end == inner->end)
-        idx = segFromI(fmin(outer->idx[0], inner->idx[0]), fmax(outer->idx[0], inner->idx[0]), args->num_v);
-    else if(outer->end == inner->start)
-        idx = segFromI(fmin(outer->idx[0], inner->idx[1]), fmax(outer->idx[0], inner->idx[1]), args->num_v);
+    for(int i = 0; i < 2; i++)
+        for(int j = 0; j < 2; j++)
+            if(outer->vert[i] == inner->vert[j])
+                idx = segFromI(fmin(outer->idx[i+1 % 2], inner->idx[j+1 % 2]), fmax(outer->idx[i+1 % 2], inner->idx[j+1 % 2]), args->num_v);
 
     if(idx == -1 || GINT_TO_POINTER(idx) <= key || GINT_TO_POINTER(idx) <= args->key)
         return false;
@@ -383,8 +378,8 @@ int main(int argc, char **argv){
     for(int i = 0; i < num_v; i++){
         for(int j = i+1; j < num_v; j++){
             seg[iter] = malloc(sizeof(seg_3));
-            seg[iter]->start = vert[i];
-            seg[iter]->end = vert[j];
+            seg[iter]->vert[0] = vert[i];
+            seg[iter]->vert[1] = vert[j];
             seg[iter]->idx[0] = i;
             seg[iter]->idx[1] = j;
             if( (err = segment_slope_3(seg[iter])) ){

@@ -6,8 +6,7 @@
 #include <stdbool.h>
 
 typedef struct{
-    gsl_vector *start;
-    gsl_vector *end;
+    gsl_vector *vert[2];
     gsl_vector *slope;
     int idx[2];
 } seg_3;
