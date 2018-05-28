@@ -150,8 +150,6 @@ int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
         goto cleanup;
     }
 
-    // TODO: if solution, check bounds for seg1, seg2 begin and end
-
     ret = GSL_SUCCESS;
 
 cleanup:
@@ -162,13 +160,16 @@ cleanup:
     return ret;
 }
 
-// TODO: Double for loop; don't repeat code for seg1, seg2
 int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
 
+    seg_3 *segs[2];
     gsl_vector *sum;
     int ret;
 
-    sum = gsl_vector_calloc(seg1->start->size);
+    segs[0] = seg1;
+    segs[1] = seg2;
+
+    sum = gsl_vector_calloc(segs[0]->start->size);
 
     //  Check if x is infinity, return -1 if it is
     for(int i = 0 ; i < x->size; i++){
@@ -178,54 +179,32 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
         }
     }
 
+    for(int j = 0; j < 2; j++){
+        // slope*x+start
+        gsl_vector_memcpy(sum, segs[j]->slope);
+        gsl_vector_scale(sum, gsl_vector_get(x, 0));
+        gsl_vector_add(sum, segs[j]->start);
 
-    // slope*x+start
-    gsl_vector_memcpy(sum, seg1->slope);
-    gsl_vector_scale(sum, gsl_vector_get(x, 0));
-    gsl_vector_add(sum, seg1->start);
+        //gsl_vector_fprintf(stdout, sum, "%1.50f");
 
-    //gsl_vector_fprintf(stdout, sum, "%1.50f");
-
-    //Do I need to do all of the checks?
-    //Do the check if the start/end aren't equal
-    for(int i = 0; i < 3; i++){
-        if( gsl_vector_get(seg1->start, i) != gsl_vector_get(seg1->end, i) ){
-            if( (gsl_vector_get(sum, i) < gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg1->end, i)) ||
-                (gsl_vector_get(sum, i) > gsl_vector_get(seg1->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg1->end, i)) ){
-                ret = GSL_FAILURE;
-                goto cleanup;
-            }
-            // Close enough to the actual value
-            if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg1->start, i)) < DELTA ||
-                fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg1->end, i)) < DELTA ){
-                ret = GSL_FAILURE;
-                goto cleanup;
-            }
-        }
-    }
-
-    //gsl_vector_fprintf(stdout, sum, "%1.50f");
-
-    gsl_vector_memcpy(sum, seg2->slope);
-    gsl_vector_scale(sum, gsl_vector_get(x, 1));
-    gsl_vector_add(sum, seg2->start);
-
-    for(int i = 0; i < 3; i++){
-        if( !(gsl_vector_get(seg2->start, i) == gsl_vector_get(seg2->end, i)) ){
-            if( (gsl_vector_get(sum, i) < gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(seg2->end, i)) ||
-                (gsl_vector_get(sum, i) > gsl_vector_get(seg2->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(seg2->end, i)) ){
-                ret = GSL_FAILURE;
-                goto cleanup;
-            }
-            // Close enough to the actual value
-            if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg2->start, i)) < DELTA ||
-                fabs(gsl_vector_get(sum, i)-gsl_vector_get(seg2->end, i)) < DELTA ){
-                ret = GSL_FAILURE;
-                goto cleanup;
+        //Do I need to do all of the checks?
+        //Do the check if the start/end aren't equal
+        for(int i = 0; i < 3; i++){
+            if( gsl_vector_get(segs[j]->start, i) != gsl_vector_get(segs[j]->end, i) ){
+                if( (gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->start, i) && gsl_vector_get(sum, i) < gsl_vector_get(segs[j]->end, i)) ||
+                    (gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->start, i) && gsl_vector_get(sum, i) > gsl_vector_get(segs[j]->end, i)) ){
+                    ret = GSL_FAILURE;
+                    goto cleanup;
+                }
+                // Close enough to the actual value
+                if( fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->start, i)) < DELTA ||
+                    fabs(gsl_vector_get(sum, i)-gsl_vector_get(segs[j]->end, i)) < DELTA ){
+                    ret = GSL_FAILURE;
+                    goto cleanup;
+                }
             }
         }
     }
-
     ret = GSL_SUCCESS;
 
 cleanup:
@@ -233,58 +212,46 @@ cleanup:
     return ret;
 }
 
-// TODO: Don't repeat code for a, b;
-// TODO: replace conditionals with case statement?
 int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
     // For a, b: Check if in safe, in overlap
-    bool safe_a=false, ignore_a=false, safe_b=false, ignore_b=false;
+    int idx[2] = {a, b};
+    bool safe_i[2] = {false, false};
+    bool ignore_i[2] = {false, false};
 
-    if(g_tree_lookup(safe, GINT_TO_POINTER(a)))
-        safe_a = true;
-    if(g_tree_lookup(ignore, GINT_TO_POINTER(a)))
-        ignore_a = true;
+    for(int i = 0; i < 2; i++){
+        if(g_tree_lookup(safe, GINT_TO_POINTER(idx[i])))
+            safe_i[i] = true;
+        if(g_tree_lookup(ignore, GINT_TO_POINTER(idx[i])))
+            ignore_i[i] = true;
+    }
 
-    if(g_tree_lookup(safe, GINT_TO_POINTER(b)))
-        safe_b = true;
-    if(g_tree_lookup(ignore, GINT_TO_POINTER(b)))
-        ignore_b = true;
+    //printf("s_a: %d, i_a: %d, s_b: %d, i_b: %d\n", safe_i[0], ignore_i[0], safe_i[1], ignore_i[1]);
 
-    //printf("s_a: %d, i_a: %d, s_b: %d, i_b: %d\n", safe_a, ignore_a, safe_b, ignore_b);
-
-    if((safe_a && ignore_a) || (safe_b && ignore_b))
+    if((safe_i[0] && ignore_i[0]) || (safe_i[1] && ignore_i[1]))
         return -1;
 
-    if((safe_a && ignore_b) || (ignore_a && safe_b) || (ignore_a && ignore_b))
+    if((safe_i[0] && ignore_i[1]) || (ignore_i[0] && safe_i[1]) || (ignore_i[0] && ignore_i[1]))
         return 0;
 
-    if(safe_a && safe_b){
-        g_tree_remove(safe, GINT_TO_POINTER(b));
-        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
-        return 0;
-    }
-
-    if(safe_a){
-        g_tree_insert(ignore, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
+    if(safe_i[0] && safe_i[1]){
+        g_tree_remove(safe, GINT_TO_POINTER(idx[1]));
+        g_tree_insert(ignore, GINT_TO_POINTER(idx[1]), GINT_TO_POINTER(idx[1]+1));
         return 0;
     }
 
-    if(safe_b){
-        g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
-        return 0;
+    for(int i = 0; i < 2; i++){
+        if(safe_i[i]){
+            g_tree_insert(ignore, GINT_TO_POINTER(idx[i]), GINT_TO_POINTER(idx[i]+1));
+            return 0;
+        }
+        if(ignore_i[i]){
+            g_tree_insert(safe, GINT_TO_POINTER(idx[i+1 % 2]), GINT_TO_POINTER(idx[i+1 % 2]+1));
+            return 0;
+        }
     }
 
-    if(ignore_a){
-        g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
-        return 0;
-    }
-
-    if(ignore_b){
-        g_tree_insert(safe, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
-        return 0;
-    }
-
-    g_tree_insert(ignore, GINT_TO_POINTER(a), GINT_TO_POINTER(a+1));
-    g_tree_insert(safe, GINT_TO_POINTER(b), GINT_TO_POINTER(b+1));
+    g_tree_insert(ignore, GINT_TO_POINTER(idx[0]), GINT_TO_POINTER(idx[0]+1));
+    g_tree_insert(safe, GINT_TO_POINTER(idx[1]), GINT_TO_POINTER(idx[1]+1));
     return 0;
 }
 
