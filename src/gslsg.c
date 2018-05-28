@@ -326,8 +326,7 @@ int main(int argc, char **argv){
     //Used when counting overlapping overlaps (because that makes sense)
     int count;
 
-    // TODO: Rename tri_ol to something that makes more sense
-    args *tri_ol;
+    args *same_pt_args;
     d_args *ig_tri_args;
 
 
@@ -352,7 +351,7 @@ int main(int argc, char **argv){
         exit(-1);
     }
 
-    tri_ol = malloc(sizeof(args));
+    same_pt_args = malloc(sizeof(args));
     ig_tri_args = malloc(sizeof(d_args));
 
     safe = g_tree_new(sort_integers);
@@ -420,12 +419,12 @@ int main(int argc, char **argv){
     num_t -= g_tree_nnodes(ignore)*(num_v-2);
     printf("num_t: %d\n", num_t);
 
-    tri_ol->segs = seg;
+    same_pt_args->segs = seg;
     for(int i = 0; i < num_v; i++){
         count = 0;
-        tri_ol->count = &count;
-        tri_ol->comp = vert[i];
-        g_tree_foreach(ignore, same_point, (gpointer)tri_ol);
+        same_pt_args->count = &count;
+        same_pt_args->comp = vert[i];
+        g_tree_foreach(ignore, same_point, (gpointer)same_pt_args);
         num_t += ((count)*(count-1)/2);
         printf("Count %d: %d\n", i, count);
     }
@@ -612,6 +611,6 @@ int main(int argc, char **argv){
     g_tree_destroy(safe);
 
     free(ig_tri_args);
-    free(tri_ol);
+    free(same_pt_args);
     return(0);
 }
