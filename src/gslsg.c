@@ -562,7 +562,10 @@ int main(int argc, char **argv){
     for(int i = 0; i < num_t; i++)
         if(tri[i]->use)
             num_t_use++;
-    while(num_t_use < (num_v-2)*2){
+
+    printf("%d/%d\n", num_t_use, (num_v-2)*2);
+    while(num_t_use != (num_v-2)*2){
+        // For each segment, make sure that only 2 triangles are using it
         for(int i = 0; i < num_s; i++){
             tps = 0;
             ips = 0;
@@ -576,17 +579,33 @@ int main(int argc, char **argv){
                     ips++;
             }
 
-            if((tps != 2 && ips != (seg_in_tri[i].n - 2)) || (tps == 2 && ips == (seg_in_tri[i].n - 2)))
-                continue;
+//            if((tps != 2 && ips != (seg_in_tri[i].n - 2)) || (tps == 2 && ips == (seg_in_tri[i].n - 2)))
+//                continue;
 
-            if(ips != (seg_in_tri[i].n - 2))
-                for(int j = 0; j < seg_in_tri[i].n; j++)
-                    if(!tri[seg_in_tri[i].tri[j]]->use)
-                        tri[seg_in_tri[i].tri[j]]->ignore = true;
-            if(tps != 2)
+            if(tps < 2)
                 for(int j = 0; j < seg_in_tri[i].n; j++)
                     if(!tri[seg_in_tri[i].tri[j]]->ignore)
                         tri[seg_in_tri[i].tri[j]]->use = true;
+
+            if(ips < (seg_in_tri[i].n - 2))
+                for(int j = 0; j < seg_in_tri[i].n; j++)
+                    if(!tri[seg_in_tri[i].tri[j]]->use)
+                        tri[seg_in_tri[i].tri[j]]->ignore = true;
+
+            if(ips > seg_in_tri[i].n - 2){
+                printf("fewer than 2 tri's/segment\n");
+                for(int j = 0; j < seg_in_tri[i].n; j++){
+                    //tri[seg_in_tri[i].tri[j]]->use = false;
+                    tri[seg_in_tri[i].tri[j]]->ignore = false;
+                }
+            }
+            if(tps > 2){
+                printf("Greater than 2 tri's/segment\n");
+                for(int j = 0; j < seg_in_tri[i].n; j++){
+                    tri[seg_in_tri[i].tri[j]]->use = false;
+                    //tri[seg_in_tri[i].tri[j]]->ignore = false;
+                }
+            }
         }
 
         num_t_use = 0;
