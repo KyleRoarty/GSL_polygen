@@ -363,9 +363,6 @@ int main(int argc, char **argv){
     // Holds list of triangles sharing a given segment (seg 0, 1, 2...)
     tri_share *tri_in_seg;
 
-    // Just a random variable used as a tmp
-    int l;
-
     // number of triangles used. Should be equal to 2num_v-4 upon finish
     int num_t_use;
 
@@ -511,12 +508,12 @@ int main(int argc, char **argv){
                 tri[currTri] = malloc(sizeof(tri_3));
                 tri[currTri]->use = false;
                 tri[currTri]->ignore = false;
-                for(int h = 0, vft[3] = {i, j, k}; h < 3; h++){
-                    tri[currTri]->vert[h] = vert[vft[h]];
-                    tri[currTri]->idx[h] = vft[h];
-                    l = segFromI(fmin(vft[h], vft[(h+1) % 3]), fmax(vft[h], vft[(h+1) % 3]), num_v);
-                    tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
-                    tri_in_seg[l].n++;
+                for(int l = 0, m = 0, vft[3] = {i, j, k}; l < 3; l++){
+                    tri[currTri]->vert[l] = vert[vft[l]];
+                    tri[currTri]->idx[l] = vft[l];
+                    m = segFromI(fmin(vft[l], vft[(l+1) % 3]), fmax(vft[l], vft[(l+1) % 3]), num_v);
+                    tri_in_seg[m].tri[tri_in_seg[m].n] = currTri;
+                    tri_in_seg[m].n++;
                 }
 
                 currTri++;
