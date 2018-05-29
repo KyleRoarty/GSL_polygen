@@ -47,18 +47,10 @@ void print_seg_3_all(seg_3 **seg, int num_s){
     }
 }
 
-//[from, to)
-int sum(int from, int to){
-    int ret = 0;
-    for(int i = from; i > to; i--)
-        ret += i;
-    return ret;
-}
-
 // x < y; sz = num points (cla)
 // x, y are points that define a segment
 int segFromI(int x, int y, int sz){
-    return x*sz-sum(x, 0)+y-(x+1);
+    return x*sz-x*(x+1)/2+y-(x+1);
 }
 
 gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
