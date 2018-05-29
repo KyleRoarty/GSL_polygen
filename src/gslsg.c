@@ -47,12 +47,6 @@ void print_seg_3_all(seg_3 **seg, int num_s){
     }
 }
 
-// x < y; sz = num points (cla)
-// x, y are points that define a segment
-int segFromI(int x, int y, int sz){
-    return x*sz-x*(x+1)/2+y-(x+1);
-}
-
 gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
     if(value == NULL)
         return true;
@@ -64,6 +58,15 @@ gboolean print_g_tree(gpointer key, gpointer value, gpointer data){
     return false;
 }
 
+// x < y; sz = num points (cla)
+// x, y are points that define a segment
+int segFromI(int x, int y, int sz){
+    return x*sz-x*(x+1)/2+y-(x+1);
+}
+
+// Used in a GLib function
+// If b > a, search left half of tree
+// if b < a, search right half of tree (I think...)
 int sort_integers(gconstpointer a, gconstpointer b){
     int int_a, int_b;
     int_a = GPOINTER_TO_INT(a);
@@ -72,10 +75,11 @@ int sort_integers(gconstpointer a, gconstpointer b){
     return int_a-int_b;
 }
 
-//For a *_3 function, constants, like for gsl_vector_malloc, will be 3
+// Calculates slope of a segment, which is just the delta of the two
+// segment ab, slope = b-a
 int segment_slope_3(seg_3 *seg){
     int err;
-    seg->slope = gsl_vector_calloc(3);
+    seg->slope = gsl_vector_calloc(V_DIM);
 
     if( (err = gsl_vector_add(seg->slope, seg->vert[1])) ){
         // Handle error
@@ -89,6 +93,7 @@ int segment_slope_3(seg_3 *seg){
     return GSL_SUCCESS;
 }
 
+// Creates vertexes from csv file
 int create_vertex_3(FILE *fp, gsl_vector *v){
     char *num=NULL, *saveptr=NULL;
     size_t len;
@@ -106,6 +111,9 @@ int create_vertex_3(FILE *fp, gsl_vector *v){
 }
 
 // TODO: replace V_DIM with a different constant here
+// Checks if two segments intersect using QR decomposition from gsl
+// The vectors are overconstrained, so QR decomp needs to be used
+// it uses least-squares, so need to check if the residual significantly small
 int segment_intersect_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
     int err, ret;
     gsl_matrix *A;
@@ -152,7 +160,9 @@ cleanup:
     return ret;
 }
 
-int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
+// Checks if the overlapping point between two segments
+// is on the line segments
+int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *ol){
 
     seg_3 *segs[2];
     gsl_vector *sum;
@@ -163,18 +173,18 @@ int overlap_in_bounds_3(seg_3 *seg1, seg_3 *seg2, gsl_vector *x){
 
     sum = gsl_vector_calloc(segs[0]->vert[0]->size);
 
-    //  Check if x is infinity, return -1 if it is
-    for(int i = 0 ; i < x->size; i++){
-        if(gsl_isinf(gsl_vector_get(x, i))){
+    //  Check if ol is infinity, return -1 if it is
+    for(int i = 0 ; i < ol->size; i++){
+        if(gsl_isinf(gsl_vector_get(ol, i))){
             ret = GSL_FAILURE;
             goto cleanup;
         }
     }
 
     for(int j = 0; j < 2; j++){
-        // slope*x+start
+        // slope*ol+start
         gsl_vector_memcpy(sum, segs[j]->slope);
-        gsl_vector_scale(sum, gsl_vector_get(x, 0));
+        gsl_vector_scale(sum, gsl_vector_get(ol, 0));
         gsl_vector_add(sum, segs[j]->vert[0]);
 
         //Do I need to do all of the checks?
@@ -202,6 +212,8 @@ cleanup:
     return ret;
 }
 
+// Determines which segment should be ignored in the mesh generation
+// If both are in the 'safe' list, ignore one
 int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
     // For a, b: Check if in safe, in overlap
     int idx[2] = {a, b};
@@ -247,7 +259,10 @@ int resolve_overlap(GTree *safe, GTree *ignore, int a, int b){
     return 0;
 }
 
-gboolean same_point(gpointer key, gpointer value, gpointer data){
+// Inner for loop; outer loop loops over vertexes, inner loop (this)
+// loops over segments
+// increments if the segment contains the vertex that the outer loop is on
+gboolean same_vert(gpointer key, gpointer value, gpointer data){
     args *comp_args;
     seg_3 *seg;
     comp_args = (args *)data;
@@ -257,6 +272,9 @@ gboolean same_point(gpointer key, gpointer value, gpointer data){
     return false;
 }
 
+// Inner loop for checking if the ignore list contains any triangles
+// Checks all segments to see if it has a matching point with the outer segment
+// If it does, it then checks if the third segment is in the ignore list
 gboolean ig_tri_inner(gpointer key, gpointer value, gpointer data){
 
     d_args *args = (d_args *)data;
@@ -287,6 +305,8 @@ gboolean ig_tri_inner(gpointer key, gpointer value, gpointer data){
     return false;
 }
 
+// Outer loop for checking if the ignore list contains any triangles
+// Loops over segments, then calls the inner loop
 gboolean ig_tri_outer(gpointer key, gpointer value, gpointer data){
 
     d_args *args = (d_args *)data;
@@ -319,7 +339,7 @@ int main(int argc, char **argv){
     int count;
 
     //Variables for g_tree_foreach arguments
-    args *same_pt_args;
+    args *same_vert_args;
     d_args *ig_tri_args;
 
 
@@ -363,7 +383,7 @@ int main(int argc, char **argv){
     }
     //TODO: Add check for file
 
-    same_pt_args = malloc(sizeof(args));
+    same_vert_args = malloc(sizeof(args));
     ig_tri_args = malloc(sizeof(d_args));
 
     safe = g_tree_new(sort_integers);
@@ -440,12 +460,12 @@ int main(int argc, char **argv){
     #endif
 
     //Set up args, call for loop
-    same_pt_args->segs = seg;
+    same_vert_args->segs = seg;
     for(int i = 0; i < num_v; i++){
         count = 0;
-        same_pt_args->count = &count;
-        same_pt_args->comp = vert[i];
-        g_tree_foreach(ignore, same_point, (gpointer)same_pt_args);
+        same_vert_args->count = &count;
+        same_vert_args->comp = vert[i];
+        g_tree_foreach(ignore, same_vert, (gpointer)same_vert_args);
         num_t += ((count)*(count-1)/2);
         #ifdef DEBUG
         printf("Count %d: %d\n", i, count);
@@ -638,6 +658,6 @@ int main(int argc, char **argv){
     g_tree_destroy(safe);
 
     free(ig_tri_args);
-    free(same_pt_args);
+    free(same_vert_args);
     return(0);
 }
