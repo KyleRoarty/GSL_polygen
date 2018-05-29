@@ -360,9 +360,6 @@ int main(int argc, char **argv){
     tri_3 **tri;
     int currTri;
 
-    // Vertices for triangle, used when generating triangles
-    int vft[3];
-
     // Holds list of triangles sharing a given segment (seg 0, 1, 2...)
     tri_share *tri_in_seg;
 
@@ -409,12 +406,11 @@ int main(int argc, char **argv){
     for(int i = 0; i < num_v; i++){
         for(int j = i+1; j < num_v; j++){
             seg[iter] = malloc(sizeof(seg_3));
-            seg[iter]->vert[0] = vert[i];
-            seg[iter]->vert[1] = vert[j];
-            seg[iter]->idx[0] = i;
-            seg[iter]->idx[1] = j;
+            for(int k = 0, vfs[2] = {i, j}; k < 2; k++){
+                seg[iter]->vert[k] = vert[vfs[k]];
+                seg[iter]->idx[k] = vfs[k];
+            }
             if( (err = segment_slope_3(seg[iter])) ){
-                //handle error
                 printf("Error! From segment_slope_3\n");
             }
             iter++;
@@ -512,19 +508,12 @@ int main(int argc, char **argv){
                 printf("Gen tri %2d: (%d, %d, %d)\n", currTri, i, j, k);
                 #endif
 
-                vft[0] = i;
-                vft[1] = j;
-                vft[2] = k;
-
                 tri[currTri] = malloc(sizeof(tri_3));
                 tri[currTri]->use = false;
                 tri[currTri]->ignore = false;
-                for(int h = 0; h < 3; h++){
+                for(int h = 0, vft[3] = {i, j, k}; h < 3; h++){
                     tri[currTri]->vert[h] = vert[vft[h]];
                     tri[currTri]->idx[h] = vft[h];
-                }
-
-                for(int h = 0; h < 3; h++){
                     l = segFromI(fmin(vft[h], vft[(h+1) % 3]), fmax(vft[h], vft[(h+1) % 3]), num_v);
                     tri_in_seg[l].tri[tri_in_seg[l].n] = currTri;
                     tri_in_seg[l].n++;
@@ -628,7 +617,7 @@ int main(int argc, char **argv){
     printf("Use these triangles: ");
     for(int i = 0; i < num_t; i++){
         if(tri[i]->use)
-            printf("%d ", i);
+            printf("%2d ", i);
     }
     printf("\n");
 
